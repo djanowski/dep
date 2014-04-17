@@ -18,12 +18,17 @@ scope do
 
   test "availability of existing gem" do
     lib = Dep::Lib.new("cutest", "1.2.0")
-    assert lib.available?
+    assert_equal :ok, lib.status
   end
 
   test "non-availability of missing gem" do
     lib = Dep::Lib.new("rails", "3.0")
-    assert ! lib.available?
+    assert_equal :missing, lib.status
+  end
+
+  test "outdated gems" do
+    lib = Dep::Lib.new("cutest", "0.0.1")
+    assert_equal :outdated, lib.status
   end
 
   test "to_s" do
@@ -79,5 +84,18 @@ scope do
     cli.install
 
     assert_equal ["gem install foo:2.0 bar:1.1 --no-document"], commands
+  end
+
+  test "uninstall outdated versions" do |cli, commands|
+    cli.list.add(Dep::Lib.new("cutest", "0.0.1"))
+
+    cli.install
+
+    expected = [
+      "gem uninstall -a cutest",
+      "gem install foo:2.0 bar:1.1 --no-document"
+    ]
+
+    assert_equal expected, commands
   end
 end

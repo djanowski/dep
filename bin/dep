@@ -28,7 +28,11 @@ module Dep
     end
 
     def missing_libraries
-      libraries.reject(&:available?)
+      libraries.select { |l| l.status == :missing }
+    end
+
+    def outdated_libraries
+      libraries.select { |l| l.status == :outdated }
     end
 
     def save
@@ -49,10 +53,18 @@ module Dep
       end
     end
 
-    def available?
-      Gem::Specification.find_by_name(name, version)
-    rescue Gem::LoadError
-      return false
+    def status
+      begin
+        Gem::Specification.find_by_name(name, version)
+        return :ok
+      rescue Gem::LoadError
+        begin
+          Gem::Specification.find_by_name(name)
+          return :outdated
+        rescue Gem::LoadError
+          return :missing
+        end
+      end
     end
 
     def to_s
@@ -111,14 +123,19 @@ module Dep
     end
 
     def install
-      if @list.missing_libraries.empty?
+      if @list.missing_libraries.empty? && @list.outdated_libraries.empty?
         puts "dep: nothing to install"
         exit
       end
 
-      libs = @list.missing_libraries.join(" ")
+      missing = @list.missing_libraries.join(" ")
+      outdated = @list.outdated_libraries.map(&:name).join(" ")
 
-      run "gem install #{libs} --no-document"
+      if !outdated.empty?
+        run "gem uninstall -a #{outdated}"
+      end
+
+      run "gem install #{missing} --no-document"
     end
 
     def run(cmd)
